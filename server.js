@@ -2,18 +2,21 @@ const express = require("express");
 const mysql = require("mysql2");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.urlencoded({ extended: true })); // needed for form submissions
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 // ✅ MySQL Connection
 const db = mysql.createConnection({
   host: "localhost",
-  user: "root",            // your MySQL username
-  password: "#Saranaik0704", // your MySQL password
-  database: "jobcloud"       // database name
+  user: "root",
+  password: "#Saranaik0704",
+  database: "jobcloud"
 });
 
 db.connect(err => {
@@ -24,7 +27,38 @@ db.connect(err => {
   console.log("✅ Connected to MySQL Database!");
 });
 
-// ✅ Default route (for testing only)
+// ✅ Ensure uploads directory exists
+const dir = './uploads';
+if (!fs.existsSync(dir)) {
+  fs.mkdirSync(dir);
+}
+
+// ✅ Multer Configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PDF files are allowed'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },  // 5MB limit
+});
+
+// ✅ Default route
 app.get("/", (req, res) => {
   res.send("Backend is working 🚀");
 });
@@ -57,6 +91,23 @@ app.post("/login", (req, res) => {
       res.send("✅ Login successful");
     } else {
       res.status(401).send("❌ Invalid email or password");
+    }
+  });
+});
+
+// ✅ Application Form Submission Route
+app.post('/submit-application', upload.single('resume'), (req, res) => {
+  const { fullname, email, phone, cover_letter } = req.body;
+  const resumePath = req.file.path;
+
+  const sql = "INSERT INTO applications (fullname, email, phone, cover_letter, resume_path) VALUES (?, ?, ?, ?, ?)";
+  
+  db.query(sql, [fullname, email, phone, cover_letter, resumePath], (err, result) => {
+    if (err) {
+      console.error('❌ Error submitting application:', err);
+      res.status(500).send('Error submitting application');
+    } else {
+      res.send('✅ Application submitted successfully');
     }
   });
 });
