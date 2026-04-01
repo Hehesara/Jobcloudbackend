@@ -71,9 +71,9 @@ app.post("/signup", (req, res) => {
   db.query(sql, [fullname, mobile, dob, email, password], (err, result) => {
     if (err) {
       console.error("❌ Error during signup:", err);
-      res.status(500).send("Error while signing up");
+      res.status(500).json({ error: "Error while signing up" });
     } else {
-      res.send("✅ User registered successfully");
+      res.json({ message: "✅ User registered successfully", fullname: fullname, email: email });
     }
   });
 });
@@ -86,28 +86,74 @@ app.post("/login", (req, res) => {
   db.query(sql, [email, password], (err, results) => {
     if (err) {
       console.error("❌ Error during login:", err);
-      res.status(500).send("Error while logging in");
+      res.status(500).json({ error: "Error while logging in" });
     } else if (results.length > 0) {
-      res.send("✅ Login successful");
+      res.json({ message: "✅ Login successful", fullname: results[0].fullname, email: results[0].email });
     } else {
-      res.status(401).send("❌ Invalid email or password");
+      res.status(401).json({ error: "❌ Invalid email or password" });
     }
   });
 });
 
 // ✅ Application Form Submission Route
 app.post('/submit-application', upload.single('resume'), (req, res) => {
-  const { fullname, email, phone, cover_letter } = req.body;
+  const { fullname, email, phone, cover_letter, job_title } = req.body;
   const resumePath = req.file.path;
 
-  const sql = "INSERT INTO applications (fullname, email, phone, cover_letter, resume_path) VALUES (?, ?, ?, ?, ?)";
+  const sql = "INSERT INTO applications (job_title, fullname, email, phone, cover_letter, resume_path) VALUES (?, ?, ?, ?, ?, ?)";
   
-  db.query(sql, [fullname, email, phone, cover_letter, resumePath], (err, result) => {
+  db.query(sql, [job_title, fullname, email, phone, cover_letter, resumePath], (err, result) => {
     if (err) {
       console.error('❌ Error submitting application:', err);
-      res.status(500).send('Error submitting application');
+      res.status(500).json({ error: 'Error submitting application' });
     } else {
-      res.send('✅ Application submitted successfully');
+      res.json({ message: '✅ Application submitted successfully' });
+    }
+  });
+});
+
+// ✅ Get My Applications Route
+app.get("/api/my-applications", (req, res) => {
+  const email = req.query.email;
+  if (!email) {
+    return res.status(400).json({ error: "Missing email parameter" });
+  }
+
+  const sql = "SELECT * FROM applications WHERE email = ? ORDER BY created_at DESC";
+  db.query(sql, [email], (err, results) => {
+    if (err) {
+      console.error("❌ Error fetching applications:", err);
+      res.status(500).json({ error: "Error fetching applications" });
+    } else {
+      res.json(results);
+    }
+  });
+});
+
+// ✅ Post Job Route
+app.post("/post-job", (req, res) => {
+  const { jobTitle, companyName, location, jobType, description } = req.body;
+
+  const sql = "INSERT INTO jobs (jobTitle, companyName, location, jobType, description) VALUES (?, ?, ?, ?, ?)";
+  db.query(sql, [jobTitle, companyName, location, jobType, description], (err, result) => {
+    if (err) {
+      console.error("❌ Error during job posting:", err);
+      res.status(500).send("Error while posting job");
+    } else {
+      res.send("✅ Job posted successfully");
+    }
+  });
+});
+
+// ✅ Get Jobs Route (Fetching from DB)
+app.get("/api/jobs", (req, res) => {
+  const sql = "SELECT * FROM jobs ORDER BY created_at DESC";
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error fetching jobs:", err);
+      res.status(500).send("Error fetching jobs");
+    } else {
+      res.json(results);
     }
   });
 });
